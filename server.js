@@ -8,7 +8,13 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://sahilkportfolio.vercel.app/"
+    ]
+  }));
 app.use(express.json());
 
 // MongoDB Connection
@@ -70,7 +76,7 @@ app.get('/api/skills', async (req, res) => {
 // Contact Form Route
 app.post('/api/contact', async (req, res) => {
   const { name, email, phone, message } = req.body;
-  
+
   try {
     // 1. Save to Database
     const newContact = new Contact({ name, email, phone, message });

@@ -1,7 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 require('dotenv').config();
 
 const app = express();
@@ -75,35 +75,13 @@ app.get('/api/skills', async (req, res) => {
 
 // Log environment variables (safe check)
 console.log('--- Environment Check ---');
-console.log('EMAIL_USER:', process.env.EMAIL_USER ? `Set (${process.env.EMAIL_USER})` : 'Missing ❌');
-console.log('EMAIL_PASS:', process.env.EMAIL_PASS ? 'Set ✅' : 'Missing ❌');
+console.log('RESEND_API_KEY:', process.env.RESEND_API_KEY ? 'Set ✅' : 'Missing ❌');
 console.log('-------------------------');
 
-// Nodemailer Transporter Configuration
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, // Use STARTTLS
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  },
-  tls: {
-    rejectUnauthorized: false
-  },
-  connectionTimeout: 10000, // 10 seconds timeout
-  greetingTimeout: 10000,
-  socketTimeout: 10000
-});
+// Resend Configuration
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-// Verify transporter connection
-transporter.verify((error, success) => {
-  if (error) {
-    console.error('❌ Nodemailer Verification Error:', error);
-  } else {
-    console.log('✅ Nodemailer is ready to send emails');
-  }
-});
+// Remove transporter verification for Resend
 
 // Contact Form Route
 app.post('/api/contact', async (req, res) => {
@@ -115,33 +93,37 @@ app.post('/api/contact', async (req, res) => {
     await newContact.save();
     console.log(`✅ Contact saved to DB for ${name}`);
 
-    // 2. Prepare Email Notification
-    const mailOptions = {
-      from: `"Portfolio Contact" <${process.env.EMAIL_USER}>`,
-      to: process.env.EMAIL_USER,
-      replyTo: email,
-      subject: `New Portfolio Message from ${name}`,
-      text: `You have a new message from your portfolio:\n\nName: ${name}\nEmail: ${email}\nPhone: ${phone}\n\nMessage:\n${message}`,
-      html: `
-        <h3>New Portfolio Message</h3>
-        <p><strong>Name:</strong> ${name}</p>
-        <p><strong>Email:</strong> ${email}</p>
-        <p><strong>Phone:</strong> ${phone}</p>
-        <p><strong>Message:</strong></p>
-        <p>${message}</p>
-      `
-    };
-
-    // 3. Send Email Notification (Awaited)
+    // 2. Send Email Notification via Resend
     try {
-      console.log(`📧 Attempting to send email for ${name}...`);
-      await transporter.sendMail(mailOptions);
-      console.log(`✅ Email sent successfully for ${name}`);
+      const { data, error } = await resend.emails.send({
+        from: 'Portfolio <onboarding@resend.dev>',
+        to: 'sahilkayasth1612@gmail.com',
+        reply_to: email,
+        subject: `New Portfolio Message from ${name}`,
+        html: `
+          <h3>New Portfolio Message</h3>
+          <p><strong>Name:</strong> ${name}</p>
+          <p><strong>Email:</strong> ${email}</p>
+          <p><strong>Phone:</strong> ${phone}</p>
+          <p><strong>Message:</strong></p>
+          <p>${message}</p>
+        `
+      });
+
+      if (error) {
+        console.error('❌ Resend Email Error:', error);
+        return res.status(500).json({ 
+          error: 'Message saved, but email notification failed.', 
+          details: error.message 
+        });
+      }
+
+      console.log(`✅ Email sent successfully via Resend for ${name}`);
       res.status(200).json({ message: 'Message saved and email sent successfully!' });
     } catch (mailErr) {
-      console.error(`❌ Email sending failed for ${name}:`, mailErr);
+      console.error(`❌ Resend Execution Error for ${name}:`, mailErr);
       res.status(500).json({ 
-        error: 'Message saved to database, but email notification failed.', 
+        error: 'Internal server error during email sending.', 
         details: mailErr.message 
       });
     }

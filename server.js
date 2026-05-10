@@ -76,8 +76,8 @@ app.get('/api/skills', async (req, res) => {
 // Nodemailer Transporter Configuration
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
+  port: 587,
+  secure: false, // Use STARTTLS
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
@@ -122,11 +122,15 @@ app.post('/api/contact', async (req, res) => {
       `
     };
 
-    await transporter.sendMail(mailOptions);
-    console.log(`✅ Email sent successfully for ${name}`);
-    res.status(200).json({ message: 'Message saved and email sent!' });
+    // 2. Send Email Notification (Background)
+    transporter.sendMail(mailOptions)
+      .then(() => console.log(`✅ Email sent successfully for ${name}`))
+      .catch(err => console.error(`❌ Email sending failed for ${name}:`, err.message));
+
+    // Send immediate response to frontend
+    res.status(200).json({ message: 'Message saved successfully!' });
   } catch (err) {
-    console.error('❌ Contact Error:', err);
+    console.error('❌ Database/Contact Error:', err);
     res.status(500).json({ error: 'Internal Server Error', details: err.message });
   }
 });

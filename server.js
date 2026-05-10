@@ -81,11 +81,19 @@ console.log('-------------------------');
 
 // Nodemailer Transporter Configuration
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, // Use STARTTLS
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
-  }
+  },
+  tls: {
+    rejectUnauthorized: false
+  },
+  connectionTimeout: 10000, // 10 seconds timeout
+  greetingTimeout: 10000,
+  socketTimeout: 10000
 });
 
 // Verify transporter connection
@@ -126,6 +134,7 @@ app.post('/api/contact', async (req, res) => {
 
     // 3. Send Email Notification (Awaited)
     try {
+      console.log(`📧 Attempting to send email for ${name}...`);
       await transporter.sendMail(mailOptions);
       console.log(`✅ Email sent successfully for ${name}`);
       res.status(200).json({ message: 'Message saved and email sent successfully!' });

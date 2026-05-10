@@ -1,0 +1,106 @@
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const nodemailer = require('nodemailer');
+require('dotenv').config();
+
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// MongoDB Connection
+const baseUri = process.env.MONGODB_URI.endsWith('/') ? process.env.MONGODB_URI : `${process.env.MONGODB_URI}/`;
+mongoose.connect(`${baseUri}SahilKayasth'sPortfolio?retryWrites=true&w=majority`)
+  .then(() => console.log('✅ MongoDB Connected to SahilKayasth\'sPortfolio'))
+  .catch(err => console.error('❌ MongoDB Connection Error:', err));
+
+// Schema Definitions
+const ContactSchema = new mongoose.Schema({
+  name: String,
+  email: String,
+  phone: String,
+  message: String,
+  date: { type: Date, default: Date.now }
+}, { collection: 'contacts' });
+
+const Contact = mongoose.model('Contact', ContactSchema);
+
+const ProjectSchema = new mongoose.Schema({
+  title: String,
+  description: String,
+  techStack: [String],
+  githubUrl: String,
+  liveUrl: String,
+  image: String,
+  category: String
+});
+
+const SkillSchema = new mongoose.Schema({
+  name: String,
+  category: String,
+  icon: String,
+  level: Number
+});
+
+const Project = mongoose.model('Project', ProjectSchema);
+const Skill = mongoose.model('Skill', SkillSchema);
+
+// API Routes
+app.get('/api/projects', async (req, res) => {
+  try {
+    const projects = await Project.find();
+    res.json(projects);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/skills', async (req, res) => {
+  try {
+    const skills = await Skill.find();
+    res.json(skills);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Contact Form Route
+app.post('/api/contact', async (req, res) => {
+  const { name, email, phone, message } = req.body;
+  
+  try {
+    // 1. Save to Database
+    const newContact = new Contact({ name, email, phone, message });
+    await newContact.save();
+
+    // 2. Send Email Notification
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      }
+    });
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER, // Use your own email to avoid being flagged as spam
+      to: process.env.EMAIL_USER,
+      replyTo: email,
+      subject: `New Portfolio Message from ${name}`,
+      text: `You have a new message from your portfolio:\n\nName: ${name}\nEmail: ${email}\nPhone: ${phone}\n\nMessage:\n${message}`
+    };
+
+    await transporter.sendMail(mailOptions);
+    res.status(200).json({ message: 'Message saved and email sent!' });
+  } catch (err) {
+    console.error('Contact Error:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});

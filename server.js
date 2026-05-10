@@ -73,17 +73,18 @@ app.get('/api/skills', async (req, res) => {
   }
 });
 
+// Log environment variables (safe check)
+console.log('--- Environment Check ---');
+console.log('EMAIL_USER:', process.env.EMAIL_USER ? `Set (${process.env.EMAIL_USER})` : 'Missing ❌');
+console.log('EMAIL_PASS:', process.env.EMAIL_PASS ? 'Set ✅' : 'Missing ❌');
+console.log('-------------------------');
+
 // Nodemailer Transporter Configuration
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, // Use STARTTLS
+  service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
-  },
-  tls: {
-    rejectUnauthorized: false
   }
 });
 
@@ -104,8 +105,9 @@ app.post('/api/contact', async (req, res) => {
     // 1. Save to Database
     const newContact = new Contact({ name, email, phone, message });
     await newContact.save();
+    console.log(`✅ Contact saved to DB for ${name}`);
 
-    // 2. Send Email Notification
+    // 2. Prepare Email Notification
     const mailOptions = {
       from: `"Portfolio Contact" <${process.env.EMAIL_USER}>`,
       to: process.env.EMAIL_USER,
@@ -122,13 +124,18 @@ app.post('/api/contact', async (req, res) => {
       `
     };
 
-    // 2. Send Email Notification (Background)
-    transporter.sendMail(mailOptions)
-      .then(() => console.log(`✅ Email sent successfully for ${name}`))
-      .catch(err => console.error(`❌ Email sending failed for ${name}:`, err.message));
-
-    // Send immediate response to frontend
-    res.status(200).json({ message: 'Message saved successfully!' });
+    // 3. Send Email Notification (Awaited)
+    try {
+      await transporter.sendMail(mailOptions);
+      console.log(`✅ Email sent successfully for ${name}`);
+      res.status(200).json({ message: 'Message saved and email sent successfully!' });
+    } catch (mailErr) {
+      console.error(`❌ Email sending failed for ${name}:`, mailErr);
+      res.status(500).json({ 
+        error: 'Message saved to database, but email notification failed.', 
+        details: mailErr.message 
+      });
+    }
   } catch (err) {
     console.error('❌ Database/Contact Error:', err);
     res.status(500).json({ error: 'Internal Server Error', details: err.message });

@@ -73,6 +73,29 @@ app.get('/api/skills', async (req, res) => {
   }
 });
 
+// Nodemailer Transporter Configuration
+const transporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  },
+  tls: {
+    rejectUnauthorized: false
+  }
+});
+
+// Verify transporter connection
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('❌ Nodemailer Verification Error:', error);
+  } else {
+    console.log('✅ Nodemailer is ready to send emails');
+  }
+});
+
 // Contact Form Route
 app.post('/api/contact', async (req, res) => {
   const { name, email, phone, message } = req.body;
@@ -83,27 +106,28 @@ app.post('/api/contact', async (req, res) => {
     await newContact.save();
 
     // 2. Send Email Notification
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      }
-    });
-
     const mailOptions = {
-      from: process.env.EMAIL_USER, // Use your own email to avoid being flagged as spam
+      from: `"Portfolio Contact" <${process.env.EMAIL_USER}>`,
       to: process.env.EMAIL_USER,
       replyTo: email,
       subject: `New Portfolio Message from ${name}`,
-      text: `You have a new message from your portfolio:\n\nName: ${name}\nEmail: ${email}\nPhone: ${phone}\n\nMessage:\n${message}`
+      text: `You have a new message from your portfolio:\n\nName: ${name}\nEmail: ${email}\nPhone: ${phone}\n\nMessage:\n${message}`,
+      html: `
+        <h3>New Portfolio Message</h3>
+        <p><strong>Name:</strong> ${name}</p>
+        <p><strong>Email:</strong> ${email}</p>
+        <p><strong>Phone:</strong> ${phone}</p>
+        <p><strong>Message:</strong></p>
+        <p>${message}</p>
+      `
     };
 
     await transporter.sendMail(mailOptions);
+    console.log(`✅ Email sent successfully for ${name}`);
     res.status(200).json({ message: 'Message saved and email sent!' });
   } catch (err) {
-    console.error('Contact Error:', err);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error('❌ Contact Error:', err);
+    res.status(500).json({ error: 'Internal Server Error', details: err.message });
   }
 });
 
